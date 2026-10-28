@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { access, analysis, concern } from '../frontend/fixtures';
 
+test.use({ serviceWorkers: 'block' });
+
 async function mockJourney(page: Page) {
   const state = { messages: [] as { id: number; role: string; content: string }[], concerns: [] as typeof concern[], calls: [] as string[] };
   await page.route('**/*', async route => {

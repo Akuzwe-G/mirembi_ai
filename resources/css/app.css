@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/instrument-sans';
 
 @source '../js/**/*.tsx';
 @source '../views/**/*.blade.php';
@@ -13,14 +14,14 @@
     --color-peach: #F5D8C8;
     --color-muted: #71697C;
     --color-line: #E5DFEA;
-    --font-sans: 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Instrument Sans Variable', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
     --shadow-soft: 0 8px 36px -22px rgb(64 51 91 / 22%);
 }
 
 @layer base {
     html { scroll-behavior: smooth; }
-    body { margin: 0; min-width: 320px; -webkit-font-smoothing: antialiased; }
+    body { margin: 0; min-width: 320px; -webkit-font-smoothing: antialiased; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
     button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
     button { cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .5; }
@@ -56,6 +57,7 @@
 .conversation-scroll { min-height: 270px; max-height: 54vh; scrollbar-width: thin; scrollbar-color: #D6CCE7 transparent; }
 .clear-dialog { width: min(480px, calc(100% - 32px)); margin: auto; border: 1px solid #E5DFEA; box-shadow: 0 24px 80px #40335b33; }
 .clear-dialog::backdrop { background: #29203766; backdrop-filter: blur(4px); }
+.clear-dialog { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px); overflow-y: auto; }
 .error-banner { width: calc(100% - 32px); }
 .welcome-art { isolation: isolate; overflow-x: clip; }
 .welcome-art::before { content: ''; position: absolute; z-index: -1; width: 115%; height: 110%; border-radius: 50%; background: radial-gradient(ellipse, #e8e0f244 15%, transparent 65%); }

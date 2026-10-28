@@ -25,13 +25,15 @@ This process environment override requires configuration not to be cached. If yo
 
 ## Frontend behaviour and privacy
 
+PWA installation and offline support are mandatory Sprint 2 features. See [Sprint 2 PWA acceptance criteria](docs/sprint-2-pwa-acceptance.md) for installation, encrypted device copies, HTTPS deployment, cross-platform test evidence and required physical-device release checks. Use `npm.cmd run test:pwa` for the Chromium/WebKit PWA suite after building.
+
 - Begin as a guest, send follow-up messages and review the reflection and clarification question.
 - Concern cards are labelled as needing review until the user confirms them. Edits return them to review. Title, category, priority and deadline can be corrected.
 - A suggested grounding step is optional. It is saved as an action only after selecting “Make this my next step”. Chosen actions can be marked complete or reopened.
 - The guest token and latest structured response are stored in `sessionStorage`, scoped to the current tab. They survive refresh and are never added to URLs, logs or analytics. Conversation history, concerns and chosen actions restore from the authenticated API. Tokens are script-accessible in this storage; keep the app on a trusted origin and use HTTPS outside local development.
 - Closing a tab can lose guest access; it does not delete server records. Use “Clear journey” to explicitly delete the journey and its data before leaving. Failed deletion keeps access so the user can retry.
 - The server currently persists message text, not historical structured response metadata. The latest clarification and grounding suggestion restore from the tab cache; older reflections restore from the database.
-- Voice is a placeholder and does not access the microphone. The abstract avatar placeholder has idle, listening, thinking, speaking and encouraging states based on interaction events, with reduced-motion support. A final 3D design, animation asset, voice capture/transcription and speech playback remain future work.
+- Optional dictation progressively detects browser speech/microphone support, explains browser audio processing and requests permission only after an explicit start. Unsupported browsers and denied permissions retain text input. Speech playback and a final 3D avatar remain future work. The abstract avatar placeholder has idle, listening, thinking, speaking and encouraging states with reduced-motion support.
 
 ## Verify without Meta credits
 
@@ -88,7 +90,7 @@ Run `php artisan config:clear`. Never commit your `.env` or API key.
 `POST /api/journeys` creates a guest journey and returns a secret access token. Provide `Authorization: Bearer <access_token>` for all other routes. `POST /api/journeys/{id}/messages` analyses and saves concerns. `GET /api/journeys/{id}` loads concerns and actions. `POST .../confirm` confirms selected concerns. `PATCH .../concerns/{concern}` edits. `POST .../actions` and `PATCH .../actions/{action}` manage actions. `DELETE /api/journeys/{id}` deletes all associated data.
 
 ## Scope and limitations
-- Text frontend is implemented; voice, a final 3D avatar and PWA remain future work.
+- The text frontend, installable PWA and progressive browser dictation are implemented. A final 3D avatar and speech playback remain future work.
 - Meta Responses requests use `instructions` and strict `text.format` JSON Schema output, followed by server validation before persistence.
 - Demo responses are fixed examples and must not be represented as real inference.
 - Production hardening still includes data retention expiry, encryption-at-rest for message content, a privacy policy, comprehensive safety escalation and moderating tools, and deployment-specific origin/security controls.

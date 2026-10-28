@@ -4,6 +4,10 @@ import { useJourney } from './useJourney';
 import { Welcome } from './components/Welcome';
 import { ClarityMap } from './components/ClarityMap';
 import { Conversation } from './components/Conversation';
+import { PwaControls } from './components/PwaControls';
+import { DeviceCopy } from './components/DeviceCopy';
+import { OfflineScreen } from './components/OfflineScreen';
+import { useOnline } from './pwa';
 
 function ClearDialog({ busy, unavailable, close, clear, forget }: { busy: boolean; unavailable: boolean; close: () => void; clear: () => void; forget: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -24,18 +28,26 @@ function ClearDialog({ busy, unavailable, close, clear, forget }: { busy: boolea
 
 export default function App() {
   const journey = useJourney();
+  const online = useOnline();
+  const previousOnline = useRef(online);
+  useEffect(() => {
+    if (online && !previousOnline.current) void journey.restore();
+    previousOnline.current = online;
+  }, [online, journey.restore]);
   const [tab, setTab] = useState<'conversation' | 'map'>('conversation');
   const [draft, setDraft] = useState('');
   const [clearOpen, setClearOpen] = useState(false);
-  const disabled = !!journey.busy || journey.unavailable || journey.needsRefresh;
+  const disabled = !!journey.busy || journey.unavailable || journey.needsRefresh || !online;
   const confirmed = journey.concerns.filter(concern => concern.confirmed).length;
   const step = journey.actions.length ? 3 : journey.concerns.length ? 2 : 1;
+  if (!online) return <div className="min-h-dvh bg-cream text-plum"><a href="#main-content" className="skip-link">Skip to main content</a><header className="border-b border-line px-5 py-5"><a href="/" className="font-display text-2xl">mirembe.</a></header><PwaControls busy={!!journey.busy || !!draft.trim()} /><OfflineScreen /></div>;
   return <div className="min-h-dvh bg-cream text-plum">
     <a href="#main-content" className="skip-link">Skip to main content</a>
     <header className="border-b border-line/70"><div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-10 lg:px-16">
       <a href="#main-content" className="flex items-center gap-2.5" aria-label="Mirembe"><span className="brand-mark" aria-hidden="true"><Sprout size={22} strokeWidth={1.5} /></span><span className="font-display text-[27px] tracking-[-0.05em]">mirembe<span className="text-lavender">.</span></span></a>
       {journey.access ? <div className="flex items-center gap-3 sm:gap-6"><span className="hidden items-center gap-1.5 text-xs text-muted sm:flex"><LockKeyhole size={12} />Guest journey</span><button className="text-button flex items-center gap-2" disabled={!!journey.busy} onClick={() => setClearOpen(true)}><Trash2 size={14} />Clear journey</button></div> : <a href="#how-it-works" className="text-button flex items-center gap-2">A gentler way forward<ArrowRight size={14} className="hidden sm:block" /></a>}
     </div></header>
+    <PwaControls busy={!!journey.busy || !!draft.trim()} />
     {journey.storageWarning && <div role="status" className="mx-auto max-w-6xl px-5 pt-5 text-sm text-muted">This browser couldn’t save your guest access. Keep this page open to continue your journey.</div>}
     {journey.error && <div className="error-banner mx-auto my-5 flex max-w-5xl flex-wrap items-start gap-3 rounded-2xl border border-peach bg-peach/30 p-4" role="alert"><AlertCircle size={19} className="mt-0.5 shrink-0" /><div className="min-w-0 flex-1"><p className="text-sm leading-6">{journey.error}</p><div className="mt-2 flex flex-wrap gap-4">{journey.access && !journey.unavailable && <button className="text-button flex items-center gap-1.5" disabled={!!journey.busy} onClick={() => void journey.restore()}><RotateCcw size={13} />Refresh journey</button>}{!journey.access && <button className="text-button" disabled={!!journey.busy} onClick={() => void journey.start()}>Try again</button>}{journey.unavailable && <button className="text-button" onClick={() => setClearOpen(true)}>Manage guest access</button>}</div></div></div>}
     {journey.busy === 'restoring' ? <main id="main-content" className="flex min-h-[65vh] items-center justify-center gap-3 text-muted" aria-busy="true"><span className="thinking-dots" aria-hidden="true"><i /><i /><i /></span><p role="status">Finding your place…</p></main> : !journey.access ? <Welcome start={() => void journey.start()} busy={!!journey.busy} /> : <main id="main-content" className="mx-auto max-w-7xl px-4 pb-10 pt-7 sm:px-10 sm:pt-10 lg:px-16">
@@ -48,6 +60,7 @@ export default function App() {
         <aside id="map-panel" aria-label="Clarity Map view" className={`min-w-0 rounded-3xl bg-[#F1EFE8] p-5 sm:p-7 ${tab === 'map' ? '' : 'hidden lg:block'}`}><ClarityMap concerns={journey.concerns} actions={journey.actions} disabled={disabled} edit={journey.edit} confirm={journey.confirm} complete={journey.complete} />{confirmed > 0 && <p className="mt-5 text-xs text-sage-dark" role="status">{confirmed} of {journey.concerns.length} concerns confirmed by you.</p>}</aside>
       </div><p className="mt-7 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-muted"><LockKeyhole size={12} className="shrink-0" />Guest access stays in this tab. Refresh to return; clear your journey when you’re done.</p>
     </main>}
+    <div className="px-4 sm:px-10"><DeviceCopy online current={journey.access ? { messages: journey.messages, concerns: journey.concerns, actions: journey.actions } : undefined} disabled={disabled} /></div>
     <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-6 text-[11px] text-muted sm:px-10 lg:px-16"><p>Mirembe · A little space for what matters.</p><p>AI clarity companion. Always at your pace.</p></footer>
     {clearOpen && journey.access && <ClearDialog busy={!!journey.busy} unavailable={journey.unavailable} close={() => setClearOpen(false)} clear={() => { void journey.clear().then(ok => { setClearOpen(false); if (ok) { setDraft(''); setTab('conversation'); } }); }} forget={() => { journey.resetLocal(); setClearOpen(false); setDraft(''); setTab('conversation'); }} />}
   </div>;

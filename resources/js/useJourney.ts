@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { api, ApiError } from './api';
 import { avatarTransition } from './avatar-machine';
 import { forgetGuest, readGuest, saveGuest } from './guest-storage';
+import { deleteOfflineCopy } from './offline-vault';
 import type { Analysis, Concern, ConcernEdit, GuestAccess, JourneyAction, Message } from './types';
 
 export function useJourney() {
@@ -36,6 +37,7 @@ export function useJourney() {
   };
 
   const restore = useCallback(async () => {
+    if (!navigator.onLine) { setBusy(null); return; }
     const saved = readGuest() ?? (currentAccess.current ? { access: currentAccess.current, analysis: undefined } : null);
     if (!saved) { setBusy(null); return; }
     currentAccess.current = saved.access;
@@ -65,7 +67,7 @@ export function useJourney() {
   });
 
   const send = (text: string) => {
-    if (!access || !text.trim() || needsRefresh || unavailable) return Promise.resolve(false);
+    if (!navigator.onLine || !access || !text.trim() || needsRefresh || unavailable) return Promise.resolve(false);
     return perform('sending', async () => {
       avatarEvent('SEND');
       const result = await api.send(access, text.trim());
@@ -124,7 +126,11 @@ export function useJourney() {
       catch (exception) {
         if (!(exception instanceof ApiError && exception.status === 404)) throw exception;
       }
+      let deviceRemoved = true;
+      try { await deleteOfflineCopy(); } catch { deviceRemoved = false; }
       resetLocal();
+      window.dispatchEvent(new Event('mirembe:device-copy-changed'));
+      if (!deviceRemoved) setError('Your online journey was deleted, but its device copy could not be removed. Use the device-copy deletion control below to retry.');
     });
   };
 

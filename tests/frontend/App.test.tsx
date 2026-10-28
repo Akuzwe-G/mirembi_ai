@@ -163,7 +163,7 @@ describe('Mirembe guest experience', () => {
     render(<App />);
     expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     expect(document.querySelector('img[src="x"]')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Voice input — coming soon' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Voice input' }));
     expect(screen.getByText(/microphone is not being accessed/)).toBeInTheDocument();
   });
 });
