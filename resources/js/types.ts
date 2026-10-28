@@ -33,5 +33,6 @@ export interface JourneySnapshot {
   concerns: Concern[];
   actions: JourneyAction[];
 }
-export interface MessageResponse { phase: string; analysis: Analysis; concerns: Concern[] }
+export interface RequestTimings { requestMs: number; metaMs?: number; validationMs?: number; backendMs?: number }
+export interface MessageResponse { phase: string; analysis: Analysis; concerns: Concern[]; timings?: RequestTimings }
 export type ConcernEdit = Pick<Concern, 'title' | 'category' | 'urgency' | 'deadline' | 'confirmed'>;

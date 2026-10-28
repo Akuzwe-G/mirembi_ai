@@ -18,6 +18,24 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe('hands-free conversation lifecycle', () => {
+  it('stops an active session when language changes and explains unsupported recognition', async () => {
+    const f = fixture(); await f.controller.start();
+    f.controller.setLanguage('fr-FR');
+    expect(f.controller.getSnapshot()).toMatchObject({ language: 'fr-FR', phase: 'paused', microphoneActive: false });
+    await f.controller.resume();
+    f.events().failed('language-not-supported');
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'paused', microphoneActive: false });
+    expect(f.controller.getSnapshot().notice).toContain('cannot recognise the chosen language');
+    f.controller.dispose();
+  });
+  it('records only numeric endpointing, request and speech-start measurements', async () => {
+    const f = fixture(); await f.controller.start();
+    f.events().transcript('A fictional thought.', '');
+    await vi.advanceTimersByTimeAsync(1600);
+    expect(f.controller.getSnapshot().timings).toMatchObject({ endpointingMs: expect.any(Number), requestMs: expect.any(Number), ttsStartupMs: expect.any(Number) });
+    expect(JSON.stringify(f.controller.getSnapshot().timings)).not.toContain('fictional');
+    f.controller.dispose();
+  });
   it('has no capture or playback before activation and welcomes only after a user action', async () => {
     const f = fixture();
     expect(f.controller.getSnapshot().phase).toBe('idle');

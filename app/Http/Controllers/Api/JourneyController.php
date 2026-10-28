@@ -40,14 +40,17 @@ class JourneyController extends Controller
     public function message(Request $request, Journey $journey, ClarityEngine $engine)
     {
         $this->owned($request, $journey);
-        $data = $request->validate(['message' => 'required|string|min:1|max:3000']);
+        $data = $request->validate(['message' => 'required|string|min:1|max:3000',
+            'language' => 'sometimes|required|in:en-US,fr-FR,rw-RW',
+            'language_source' => 'sometimes|required|in:user_selected',
+        ]);
         $history = $journey->messages()->orderByDesc('id')->limit(max(0, min(8, (int) config('mirembe.history_messages'))))->get(['role', 'content'])
             ->reverse()->values()->map(fn ($message) => [
                 'role' => $message->role,
                 'content' => $message->content,
             ])->all();
         try {
-            $result = $engine->analyse($data['message'], $history);
+            $result = $engine->analyse($data['message'], $history, $data['language'] ?? 'en-US');
         } catch (Throwable $e) {
             Log::warning('Clarity analysis failed.', ['exception_type' => get_class($e)]);
 

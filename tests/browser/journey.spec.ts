@@ -36,23 +36,28 @@ async function mockJourney(page: Page) {
   return state;
 }
 
-for (const width of [320, 390, 768, 1440]) {
+for (const { width, height } of [{ width: 320, height: 568 }, { width: 375, height: 667 }, { width: 390, height: 844 }, { width: 412, height: 915 }, { width: 768, height: 900 }, { width: 1440, height: 900 }, { width: 844, height: 390 }]) {
   test(`welcome and journey are usable without horizontal overflow at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
+    await page.setViewportSize({ width, height });
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.name));
     const state = await mockJourney(page);
     await page.goto('/');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('A little less noise.A little more clarity.');
-    await expect(page.getByRole('button', { name: 'Begin my journey' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Hi, I’m Mirembe. I’m here. What’s on your mind?');
+    const microphone = page.getByRole('button', { name: 'Enable microphone' });
+    await expect(microphone).toBeVisible();
+    const bounds = await microphone.boundingBox();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
+    await expect(page.getByRole('log')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 1440) await page.screenshot({ path: 'storage/app/frontend-welcome-desktop.png', fullPage: true });
-    await page.getByRole('button', { name: 'Begin my journey' }).click();
+    await page.getByRole('button', { name: 'Type instead' }).click();
     await page.getByRole('textbox', { name: 'Your message to Mirembe' }).fill('Help me organise my assignment.');
     await page.getByRole('button', { name: 'Send message' }).click();
-    await expect(page.getByText(analysis.clarification_question!)).toBeVisible();
+    await expect(page.getByText(analysis.clarification_question!, { exact: true })).toBeVisible();
     await expect(page.getByText('An optional grounding step')).toBeVisible();
-    if (width < 1024) await page.getByRole('tab', { name: /Clarity Map/ }).click();
+    await page.getByRole('tab', { name: /Clarity Map/ }).click();
     await expect(page.getByRole('heading', { name: 'Coursework' })).toBeVisible();
     await page.getByRole('button', { name: 'Edit Coursework' }).click();
     await page.getByLabel('Concern', { exact: true }).fill('My assignment');
@@ -63,16 +68,21 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(page.getByText('Confirmed by you', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 390) await page.screenshot({ path: 'storage/app/frontend-map-mobile.png', fullPage: true });
+    await page.getByRole('tab', { name: 'Conversation' }).click();
     await page.reload();
-    await expect(page.getByText(analysis.clarification_question!)).toBeVisible();
+    await page.getByRole('button', { name: 'Type instead' }).click();
+    await expect(page.getByText(analysis.clarification_question!, { exact: true })).toBeVisible();
     expect(state.calls.filter(call => call.endsWith('/messages'))).toHaveLength(1);
     if (width === 1440) await page.screenshot({ path: 'storage/app/frontend-journey-desktop.png', fullPage: true });
     if (width === 390) await page.screenshot({ path: 'storage/app/frontend-conversation-mobile.png', fullPage: true });
-    await page.getByRole('button', { name: 'Clear journey' }).click();
+    await page.getByRole('button', { name: 'Close My Journey' }).click();
+    await page.getByRole('button', { name: 'Open menu' }).click();
+    await page.getByRole('button', { name: 'Delete my data', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Delete my journey' }).click();
-    await expect(page.getByRole('button', { name: 'Begin my journey' })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Enable microphone' })).toBeVisible();
     expect(await page.evaluate(() => sessionStorage.getItem('mirembe.guest.v1'))).toBeNull();
     expect(errors).toEqual([]);
   });
@@ -87,13 +97,15 @@ test('keyboard navigation, reduced motion and dialog cancellation', async ({ pag
   await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused();
   const animation = await page.locator('.avatar-core').evaluate(element => getComputedStyle(element).animationName);
   expect(animation).toBe('none');
-  await page.getByRole('button', { name: 'Begin my journey' }).click();
+  await page.getByRole('button', { name: 'Type instead' }).click();
   await page.getByRole('tab', { name: 'Conversation' }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Clarity Map' })).toBeFocused();
   await expect(page.getByRole('tab', { name: 'Clarity Map' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('button', { name: 'Clear journey' }).click();
+  await page.getByRole('button', { name: 'Close My Journey' }).click();
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await page.getByRole('button', { name: 'Delete my data', exact: true }).click();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();
-  await expect(page.getByRole('button', { name: 'Clear journey' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Open menu' })).toBeFocused();
 });

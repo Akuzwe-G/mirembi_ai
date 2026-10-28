@@ -12,7 +12,8 @@ beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); });
 async function begin() {
   fetchMock.mockResolvedValueOnce(response({ ...access, phase: 'express' }));
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Begin my journey' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enable microphone' })).toBeEnabled());
+  await user.click(await screen.findByRole('button', { name: 'Type instead' }));
   await screen.findByRole('textbox', { name: 'Your message to Mirembe' });
   return user;
 }
@@ -20,6 +21,7 @@ async function restored() {
   saveGuest(access, analysis);
   fetchMock.mockResolvedValueOnce(response(snapshot));
   render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Type instead' }));
   await screen.findByText(analysis.reflection);
   return userEvent.setup();
 }
@@ -48,8 +50,10 @@ describe('Mirembe guest experience', () => {
     expect(await screen.findByText(analysis.reflection)).toBeInTheDocument();
     expect(screen.getByText(analysis.clarification_question!)).toBeInTheDocument();
     expect(screen.getByText(analysis.next_action!)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Mirembe avatar placeholder: idle' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Clarity Map' }));
     expect(screen.getByText('Needs your review')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Mirembe avatar placeholder: speaking' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Conversation' }));
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [url, options] = fetchMock.mock.calls[1];
     expect(url).toBe(`/api/journeys/${access.journey_id}/messages`);
@@ -96,17 +100,22 @@ describe('Mirembe guest experience', () => {
     saveGuest(access, analysis);
     fetchMock.mockImplementation(async () => response(snapshot));
     const first = render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Type instead' }));
     await screen.findByText(analysis.clarification_question!);
     first.unmount();
     render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Type instead' }));
     expect(await screen.findByText('I have an assignment due.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Clarity Map' }));
     expect(screen.getByText('Coursework')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Conversation' }));
     expect(screen.getByText(analysis.clarification_question!)).toBeInTheDocument();
     expect(fetchMock.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true);
   });
 
   it('edits all concern fields, requires review, and confirms through the existing endpoint', async () => {
     const user = await restored();
+    await user.click(screen.getByRole('tab', { name: 'Clarity Map' }));
     await user.click(screen.getByRole('button', { name: 'Edit Coursework' }));
     await user.clear(screen.getByLabelText('Concern'));
     await user.type(screen.getByLabelText('Concern'), 'Assignment brief');
@@ -120,7 +129,7 @@ describe('Mirembe guest experience', () => {
     fetchMock.mockResolvedValueOnce(response({ phase: 'focus', concerns: [{ ...updated, confirmed: true }] }));
     await user.click(screen.getByRole('button', { name: 'Confirm Assignment brief' }));
     expect(await screen.findByText('Confirmed by you')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Mirembe avatar placeholder: encouraging' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Assignment brief' })).toBeInTheDocument();
   });
 
   it('saves an action only when chosen and lets the user complete it', async () => {
@@ -128,6 +137,7 @@ describe('Mirembe guest experience', () => {
     const action = { id: 7, title: analysis.next_action, status: 'pending' };
     fetchMock.mockResolvedValueOnce(response(action, 201));
     await user.click(screen.getByRole('button', { name: /Make this my next step/ }));
+    await user.click(screen.getByRole('tab', { name: 'Clarity Map' }));
     const complete = await screen.findByRole('button', { name: `Complete action: ${analysis.next_action}` });
     expect(screen.getByText('Steps you’ve chosen')).toBeInTheDocument();
     fetchMock.mockResolvedValueOnce(response({ ...action, status: 'completed' }));
@@ -137,33 +147,39 @@ describe('Mirembe guest experience', () => {
 
   it('clears server data and tab access only after explicit confirmation', async () => {
     const user = await restored();
-    await user.click(screen.getByRole('button', { name: 'Clear journey' }));
+    await user.click(screen.getByRole('button', { name: 'Close My Journey' }));
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await user.click(screen.getByRole('button', { name: 'Delete my data' }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     fetchMock.mockResolvedValueOnce(response(null, 204));
     await user.click(screen.getByRole('button', { name: 'Delete my journey' }));
-    expect(await screen.findByRole('button', { name: 'Begin my journey' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Enable microphone' })).toBeInTheDocument();
     expect(readGuest()).toBeNull();
     expect(fetchMock.mock.calls.at(-1)![1]?.method).toBe('DELETE');
   });
 
   it('keeps access when deletion fails and never claims the journey was cleared', async () => {
     const user = await restored();
-    await user.click(screen.getByRole('button', { name: 'Clear journey' }));
+    await user.click(screen.getByRole('button', { name: 'Close My Journey' }));
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await user.click(screen.getByRole('button', { name: 'Delete my data' }));
     fetchMock.mockResolvedValueOnce(response({}, 500));
     await user.click(screen.getByRole('button', { name: 'Delete my journey' }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(readGuest()?.access).toEqual(access);
-    expect(screen.queryByRole('button', { name: 'Begin my journey' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete my journey' })).toBeInTheDocument();
   });
 
   it('treats model content as text and never starts the microphone', async () => {
     saveGuest(access);
     fetchMock.mockResolvedValueOnce(response({ ...snapshot, messages: [{ id: 2, role: 'assistant', content: '<img src=x onerror=alert(1)>' }] }));
     render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Type instead' }));
     expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     expect(document.querySelector('img[src="x"]')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Voice input' }));
-    expect(screen.getByText(/microphone is not being accessed/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close My Journey' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable microphone' }));
+    expect(screen.getByText(/Hands-free recognition is not available/)).toBeInTheDocument();
   });
 });

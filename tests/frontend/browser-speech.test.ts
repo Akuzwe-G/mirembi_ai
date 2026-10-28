@@ -1,7 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BrowserSpeechInput, BrowserSpeechOutput, chooseEnglishVoice, requestMicrophone } from '../../resources/js/voice/browser-speech';
+import { BrowserSpeechInput, BrowserSpeechOutput, chooseEnglishVoice, chooseVoice, requestMicrophone } from '../../resources/js/voice/browser-speech';
 
 describe('browser speech adapters', () => {
+  it('uses the selected locale rather than assuming recognition detects languages', () => {
+    let recognizer!: { lang?: string };
+    vi.stubGlobal('SpeechRecognition', class { constructor() { recognizer = this; } lang = ''; start() {} abort() {} });
+    const input = new BrowserSpeechInput();
+    const events = { started: vi.fn(), transcript: vi.fn(), speechEnded: vi.fn(), ended: vi.fn(), failed: vi.fn() };
+    for (const locale of ['en-US', 'fr-FR', 'rw-RW']) { input.setLanguage(locale); input.start(events); expect(recognizer.lang).toBe(locale); }
+    input.abort();
+  });
+  it('selects French and Kinyarwanda only when matching voices actually exist', () => {
+    const voices = [{ lang: 'en-US', localService: true }, { lang: 'fr-FR', localService: false }] as SpeechSynthesisVoice[];
+    expect(chooseVoice(voices, 'fr-FR')?.lang).toBe('fr-FR');
+    expect(chooseVoice(voices, 'rw-RW')).toBeUndefined();
+  });
+  it('does not read Kinyarwanda using an English voice when matching synthesis is unavailable', async () => {
+    const speak = vi.fn();
+    vi.stubGlobal('speechSynthesis', { getVoices: () => [{ lang: 'en-US' }], addEventListener: vi.fn(), removeEventListener: vi.fn(), cancel: vi.fn(), speak });
+    vi.stubGlobal('SpeechSynthesisUtterance', class { constructor(public text: string) {} });
+    const output = new BrowserSpeechOutput(); output.setLanguage('rw-RW');
+    await expect(output.speak('Dushobora kubiganiraho.', 1, vi.fn())).resolves.toBe('unavailable');
+    expect(speak).not.toHaveBeenCalled(); output.dispose();
+  });
   it('chooses an available English voice without assuming a vendor-specific name', () => {
     const voices = [
       { name: 'German', lang: 'de-DE', localService: true, default: true },

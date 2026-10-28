@@ -10,6 +10,8 @@ interface NativeRecognition {
 type RecognitionWindow = Window & { SpeechRecognition?: new () => NativeRecognition; webkitSpeechRecognition?: new () => NativeRecognition };
 
 export class BrowserSpeechInput implements SpeechInput {
+  private language = 'en-US';
+  setLanguage(language: string): void { this.language = language; }
   private recognition: NativeRecognition | null = null;
   private Constructor = (window as RecognitionWindow).SpeechRecognition ?? (window as RecognitionWindow).webkitSpeechRecognition;
   get supported(): boolean { return !!this.Constructor && !!navigator.mediaDevices?.getUserMedia && !!window.isSecureContext; }
@@ -18,7 +20,7 @@ export class BrowserSpeechInput implements SpeechInput {
     if (!this.Constructor) throw new Error('unsupported');
     const recognition = new this.Constructor();
     this.recognition = recognition;
-    recognition.lang = 'en-US'; recognition.continuous = true; recognition.interimResults = true;
+    recognition.lang = this.language; recognition.continuous = true; recognition.interimResults = true;
     recognition.onstart = events.started; recognition.onend = events.ended; recognition.onspeechend = events.speechEnded;
     recognition.onerror = event => events.failed(event.error);
     recognition.onresult = event => {
@@ -48,12 +50,16 @@ export async function requestMicrophone(): Promise<void> {
   stream.getTracks().forEach(track => track.stop());
 }
 
-export function chooseEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
-  return voices.filter(voice => /^en(?:-|$)/i.test(voice.lang))
-    .sort((a, b) => Number(b.localService) - Number(a.localService) || Number(b.default) - Number(a.default))[0];
+export function chooseVoice(voices: SpeechSynthesisVoice[], language: string): SpeechSynthesisVoice | undefined {
+  const base = language.split('-')[0].toLowerCase();
+  return voices.filter(voice => voice.lang.split(/[-_]/)[0].toLowerCase() === base)
+    .sort((a, b) => Number(b.lang === language) - Number(a.lang === language) || Number(b.localService) - Number(a.localService) || Number(b.default) - Number(a.default))[0];
 }
+export const chooseEnglishVoice = (voices: SpeechSynthesisVoice[]) => chooseVoice(voices, 'en-US');
 
 export class BrowserSpeechOutput implements SpeechOutput {
+  private language = 'en-US';
+  setLanguage(language: string): void { this.language = language; }
   private finish: ((outcome: SpeechOutcome) => void) | null = null;
   private voices: SpeechSynthesisVoice[] = [];
   private refresh = () => { this.voices = window.speechSynthesis?.getVoices() ?? []; };
@@ -73,9 +79,10 @@ export class BrowserSpeechOutput implements SpeechOutput {
     this.refresh();
     return new Promise(resolve => {
       const utterance = new SpeechSynthesisUtterance(text);
-      const voice = chooseEnglishVoice(this.voices);
+      const voice = chooseVoice(this.voices, this.language);
+      if (!voice && this.language !== 'en-US') { resolve('unavailable'); return; }
       if (voice) utterance.voice = voice;
-      utterance.lang = voice?.lang ?? 'en-US'; utterance.rate = Math.max(.7, Math.min(1.4, rate));
+      utterance.lang = voice?.lang ?? this.language; utterance.rate = Math.max(.7, Math.min(1.4, rate));
       let started = false;
       const startTimeout = setTimeout(() => { if (!started) { finish('blocked'); window.speechSynthesis.cancel(); } }, 5000);
       const watchdog = setTimeout(() => { finish('blocked'); window.speechSynthesis.cancel(); }, 120000);

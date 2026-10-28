@@ -3,8 +3,9 @@ import type { Analysis } from '../types';
 import { BrowserSpeechInput, BrowserSpeechOutput, requestMicrophone } from './browser-speech';
 import { VoiceConversation } from './VoiceConversation';
 import type { AvatarState } from '../avatar-machine';
+import type { VoiceLanguage } from './languages';
 
-export function useVoiceConversation(options: { ensureJourney: () => Promise<boolean>; send: (text: string) => Promise<Analysis | null> }) {
+export function useVoiceConversation(options: { ensureJourney: () => Promise<boolean>; send: (text: string) => Promise<Analysis | null>; language?: VoiceLanguage }) {
   const callbacks = useRef(options); callbacks.current = options;
   const [controller] = useState(() => new VoiceConversation({
     input: new BrowserSpeechInput(), output: new BrowserSpeechOutput(), permission: requestMicrophone,
@@ -12,6 +13,7 @@ export function useVoiceConversation(options: { ensureJourney: () => Promise<boo
     available: () => navigator.onLine && document.visibilityState !== 'hidden',
   }));
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  useEffect(() => { controller.setLanguage(options.language ?? 'en-US'); }, [controller, options.language]);
   useEffect(() => {
     const hidden = () => { if (document.visibilityState === 'hidden') controller.pause('Voice paused because Mirembe went into the background. Tap Resume voice when you return.'); };
     const offline = () => controller.pause('Connection lost. Voice is paused; nothing is queued. Reconnect, then tap Resume voice.');

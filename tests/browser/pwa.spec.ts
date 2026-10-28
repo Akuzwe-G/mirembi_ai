@@ -28,6 +28,7 @@ test('manifest, icons, standalone metadata, installation guidance and orientatio
   for (const icon of manifest.icons) expect((await request.get(icon.src)).ok()).toBe(true);
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icons/apple-touch-icon.png');
+  await page.getByRole('button', { name: 'Open menu' }).click();
   if (testInfo.project.name === 'ios-webkit') {
     await page.getByRole('button', { name: 'Install on iPhone or iPad' }).click();
     await expect(page.getByText(/Tap Share, then Add to Home Screen/)).toBeVisible();
@@ -43,9 +44,10 @@ test('manifest, icons, standalone metadata, installation guidance and orientatio
     await expect(page.getByRole('button', { name: 'Install Mirembe' })).toBeVisible();
     await page.getByRole('button', { name: 'Install Mirembe' }).click();
   }
+  await page.getByRole('button', { name: 'Close Your space' }).click();
   await page.setViewportSize({ width: 844, height: 390 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(page.getByRole('button', { name: 'Begin my journey' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enable microphone' })).toBeVisible();
 });
 
 test('shell launches offline without saving personal responses or serving APIs from caches', async ({ page, context }) => {
@@ -71,12 +73,13 @@ test('shell launches offline without saving personal responses or serving APIs f
   expect(outcomes).toEqual(['network-only', 'network-only', 'network-only', 'network-only']);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await context.setOffline(false);
-  await expect(page.getByRole('button', { name: 'Begin my journey' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enable microphone' })).toBeVisible();
 });
 
 test('only an explicit encrypted device copy can be unlocked offline and deleted locally', async ({ page, context }) => {
   await mockPrivateJourney(page);
   await ready(page);
+  await page.getByRole('button', { name: 'Language and voice settings' }).click();
   const copy = page.getByRole('region', { name: 'Offline journey on this device' });
   await copy.locator('summary').click();
   await copy.getByLabel('Choose an offline passphrase').fill('my private offline phrase');
@@ -103,7 +106,9 @@ test('only an explicit encrypted device copy can be unlocked offline and deleted
 test('standalone launch hides install guidance and accessibility checks pass', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   await ready(page);
+  await page.getByRole('button', { name: 'Open menu' }).click();
   await expect(page.getByText('A little space on your home screen.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close Your space' }).click();
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(node => node.target) }))).toEqual([]);
 });
@@ -111,7 +116,9 @@ test('standalone launch hides install guidance and accessibility checks pass', a
 test('service worker updates wait for consent and remove obsolete precache assets', async ({ page }) => {
   await mockPrivateJourney(page);
   await ready(page);
+  await page.getByRole('button', { name: 'Type instead' }).click();
   await page.getByRole('textbox', { name: 'Your message to Mirembe' }).fill('Keep this draft until I am ready.');
+  await page.getByRole('button', { name: 'Close My Journey' }).click();
   await page.evaluate(async () => {
     const name = (await caches.keys()).find(name => name.startsWith('mirembe-static-precache'))!;
     await (await caches.open(name)).put('/build/assets/obsolete-regression.js', new Response('obsolete fixture'));
@@ -119,9 +126,12 @@ test('service worker updates wait for consent and remove obsolete precache asset
   });
   await expect(page.getByRole('button', { name: 'Update and reload' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Update and reload' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Type instead' }).click();
   await page.getByRole('textbox', { name: 'Your message to Mirembe' }).fill('');
+  await page.getByRole('button', { name: 'Close My Journey' }).click();
   await expect(page.getByRole('button', { name: 'Update and reload' })).toBeEnabled();
   await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Update and reload' }).click()]);
+  await page.getByRole('button', { name: 'Type instead' }).click();
   await expect(page.getByText(snapshot.messages[0].content)).toBeVisible();
   const obsolete = await page.evaluate(async () => {
     for (const name of await caches.keys()) {

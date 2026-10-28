@@ -16,18 +16,18 @@ class ClarityEngine
         return $this->timings;
     }
 
-    public function analyse(string $message, array $recentMessages = []): array
+    public function analyse(string $message, array $recentMessages = [], string $language = 'en-US'): array
     {
         $started = hrtime(true);
         $this->timings = ['meta' => 0.0, 'validation' => 0.0];
         try {
-            return $this->requestAnalysis($message, $recentMessages);
+            return $this->requestAnalysis($message, $recentMessages, $language);
         } finally {
             $this->timings['engine'] = (hrtime(true) - $started) / 1e6;
         }
     }
 
-    private function requestAnalysis(string $message, array $recentMessages): array
+    private function requestAnalysis(string $message, array $recentMessages, string $language): array
     {
         if (config('mirembe.mode') === 'demo') {
             return $this->demo($message);
@@ -52,6 +52,15 @@ Deadline must be explicit in the user's words or null. Keep reflection to 1-3 sh
 Ask no more than one clarifying question; propose only a small achievable next action.
 Never diagnose or claim to be human. For imminent personal danger, prioritise real-world emergency support.
 PROMPT;
+        $languageName = match ($language) {
+            'fr-FR' => 'French',
+            'rw-RW' => 'Kinyarwanda',
+            default => 'English',
+        };
+        $system .= "\nThe user-selected preferred language is {$languageName} ({$language}); this is not automatically detected speech metadata."
+            .' Respond in the language of the current user utterance; use the preferred language when the utterance is ambiguous.'
+            .' Preserve the original language and natural code-switching. Do not unnecessarily translate to English.'
+            .' Apply this to reflection, clarification_question, concern titles and next_action. Keep JSON keys and urgency/avatar enums unchanged.';
         $limit = max(0, min(8, (int) config('mirembe.history_messages')));
         $history = $limit === 0 ? [] : array_slice($recentMessages, -$limit);
         $context = collect($history)->map(fn ($m) => $m['role'].': '.$m['content'])->implode("\n");

@@ -2,6 +2,8 @@
 
 Mirembe is a Laravel application with a React, TypeScript and Tailwind CSS frontend, bundled through Vite. The existing Laravel guest journey API remains the backend.
 
+The current interface opens directly to the avatar and an **Enable microphone** action, with typing and the Clarity Map in secondary panels. See [the avatar-first handoff](docs/avatar-first-experience.md) for actual multilingual capabilities, test coverage, response timings and Laravel Cloud update steps. Normal Meta mode uses the real configured API; automated tests use mocks without consuming credits.
+
 ## Launch the current application
 
 From `C:\laragon\www\mirembe-ai`, run:
@@ -96,7 +98,7 @@ Run `php artisan config:clear`. Never commit your `.env` or API key.
 - Meta Responses requests use `instructions` and strict `text.format` JSON Schema output, followed by server validation before persistence.
 - Demo responses are fixed examples and must not be represented as real inference.
 - Production hardening still includes data retention expiry, encryption-at-rest for message content, a privacy policy, comprehensive safety escalation and moderating tools, and deployment-specific origin/security controls.
-- This scaffold does not claim live API testing because no Meta API key was supplied.
+- Automated verification uses mocked Meta responses. The configured real Meta integration remains available in Meta mode; no billable requests are made during automated tests.
 - The model must not override user-confirmed changes: this first version adds newly extracted concerns but does not automatically overwrite persisted concerns.
 
 ## Official references

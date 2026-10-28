@@ -1,5 +1,6 @@
 import type { Analysis } from '../types';
 import type { SpeechInput, SpeechOutput, VoiceSnapshot } from './contracts';
+import { languages, type VoiceLanguage } from './languages';
 
 interface VoiceDependencies {
   input: SpeechInput;
@@ -9,7 +10,7 @@ interface VoiceDependencies {
   send(text: string): Promise<Analysis | null>;
   available(): boolean;
 }
-const initial = (): VoiceSnapshot => ({ phase: 'idle', active: false, microphoneActive: false, transcript: '', interim: '', spokenText: '', notice: '', muted: false, outputEnabled: true, rate: 1, silenceMs: 1600, requestPending: false });
+const initial = (): VoiceSnapshot => ({ phase: 'idle', active: false, microphoneActive: false, transcript: '', interim: '', spokenText: '', notice: '', muted: false, outputEnabled: true, rate: 1, silenceMs: 1600, requestPending: false, language: 'en-US', timings: {} });
 
 export class VoiceConversation {
   private state = initial();
@@ -20,6 +21,8 @@ export class VoiceConversation {
   private retries = 0;
   private lastSubmitted = '';
   private lastSubmittedAt = 0;
+  private speechEndedAt: number | undefined;
+  private transcriptAt = 0;
   constructor(private dependencies: VoiceDependencies) {}
   getSnapshot = (): VoiceSnapshot => this.state;
   subscribe = (listener: () => void): (() => void) => { this.subscribers.add(listener); return () => { this.subscribers.delete(listener); }; };
@@ -45,7 +48,7 @@ export class VoiceConversation {
     this.stopResources(); this.lastSubmitted = ''; this.retries = 0;
     this.update({ active: true, phase: 'requesting_permission', notice: 'Allow microphone access to begin. Voice mode sends each final transcript after you pause.', transcript: '', interim: '' });
     const epoch = this.epoch;
-    const welcome = 'Hello, I’m Mirembe. What’s taking up space in your mind today?';
+    const welcome = languages[this.state.language].greeting;
     let greeting: Promise<import('./contracts').SpeechOutcome> = Promise.resolve('completed');
     try {
       this.dependencies.output.activate();
@@ -83,6 +86,7 @@ export class VoiceConversation {
     if (!this.state.active || this.state.muted || !this.dependencies.available()) return;
     this.clearTimers(); this.dependencies.input.abort();
     const epoch = ++this.epoch;
+    this.speechEndedAt = undefined;
     this.update({ phase: 'processing', microphoneActive: false, transcript: '', interim: '', notice: 'Getting ready to listen…' });
     try {
       this.dependencies.input.start({
@@ -95,10 +99,12 @@ export class VoiceConversation {
           if (!this.valid(epoch) || !['listening', 'processing'].includes(this.state.phase)) return;
           if ((finalText + interim).length > 3000) { this.update({ transcript: finalText, interim }); this.pause('That is a long thought. Switch to typing to review and shorten it before sending.'); return; }
           const changed = finalText !== this.state.transcript || interim !== this.state.interim;
-          this.update({ transcript: finalText, interim });
+          this.update({ transcript: finalText, interim, ...(changed && !this.state.transcript && !this.state.interim ? { timings: {} } : {}) });
+          if (changed) this.transcriptAt = performance.now();
+          if (finalText && !interim && this.speechEndedAt !== undefined) this.update({ timings: { ...this.state.timings, finalizationMs: performance.now() - this.speechEndedAt } });
           if (changed && (finalText || interim)) { clearTimeout(this.idleTimer); this.silence(); }
         },
-        speechEnded: () => { if (this.valid(epoch) && (this.state.transcript || this.state.interim)) this.silence(); },
+        speechEnded: () => { if (this.valid(epoch)) { this.speechEndedAt = performance.now(); if (this.state.transcript || this.state.interim) this.silence(); } },
         ended: () => {
           if (!this.valid(epoch)) return;
           this.update({ microphoneActive: false });
@@ -110,6 +116,7 @@ export class VoiceConversation {
         failed: code => {
           if (!this.valid(epoch)) return;
           if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(code)) this.permissionRevoked();
+          else if (code === 'language-not-supported') this.pause('This browser cannot recognise the chosen language. Choose another language in Settings or switch to typing.');
           else if (code !== 'no-speech' && code !== 'aborted') this.pause('Speech recognition was interrupted. Check your connection and tap Resume voice, or type instead.');
         },
       });
@@ -135,21 +142,23 @@ export class VoiceConversation {
     }
     this.lastSubmitted = text.toLocaleLowerCase(); this.lastSubmittedAt = Date.now();
     this.clearTimers(); this.dependencies.input.abort(); const turn = ++this.epoch;
-    this.update({ phase: 'thinking', microphoneActive: false, interim: '', requestPending: true, notice: 'Mirembe is reflecting…' });
+    this.update({ phase: 'thinking', microphoneActive: false, interim: '', requestPending: true, timings: { ...this.state.timings, endpointingMs: performance.now() - this.transcriptAt, requestMs: undefined, ttsStartupMs: undefined }, notice: 'Mirembe is reflecting…' });
+    const requestStarted = performance.now();
     let result: Analysis | null = null;
     try { result = await this.dependencies.send(text); } catch { /* The visible error never includes provider details. */ }
-    this.update({ requestPending: false });
+    this.update({ requestPending: false, timings: { ...this.state.timings, requestMs: performance.now() - requestStarted } });
     if (!this.valid(turn)) return;
     if (!result) { this.stopResources(); this.update({ phase: 'error', active: true, notice: 'The response could not be confirmed. Your words are shown here. Check the conversation before retrying; nothing will be resent automatically.' }); return; }
     const reply = `${result.demo_mode ? 'This is a fixed demo example. ' : ''}${[result.reflection, result.clarification_question].filter(Boolean).join(' ')}`;
     this.update({ spokenText: reply }); this.retries = 0;
     if (this.state.outputEnabled && this.outputSupported) {
       this.update({ phase: 'processing', notice: 'Preparing Mirembe’s reply…' });
+      const speechStarted = performance.now();
       const outcome = await this.dependencies.output.speak(reply, this.state.rate, () => {
-        if (this.valid(turn)) this.update({ phase: 'speaking', microphoneActive: false, notice: 'Mirembe is speaking. The microphone is off.' });
+        if (this.valid(turn)) this.update({ phase: 'speaking', microphoneActive: false, timings: { ...this.state.timings, ttsStartupMs: performance.now() - speechStarted }, notice: 'Mirembe is speaking. The microphone is off.' });
       });
       if (!this.valid(turn)) return;
-      if (outcome !== 'completed') { this.pause('Speech playback was interrupted. Read the reply, then tap Resume voice.'); return; }
+      if (outcome !== 'completed' && outcome !== 'unavailable') { this.pause('Speech playback was interrupted. Read the reply, then tap Resume voice.'); return; }
     }
     if (this.valid(turn)) this.listen();
   }
@@ -163,5 +172,11 @@ export class VoiceConversation {
   setOutputEnabled(enabled: boolean): void { this.update({ outputEnabled: enabled }); if (!enabled && this.state.phase === 'speaking') this.pause('Spoken replies are off. Tap Resume voice to continue with text replies.'); }
   setRate(rate: number): void { this.update({ rate: Math.max(.7, Math.min(1.4, rate)) }); }
   setSilenceMs(silenceMs: number): void { this.update({ silenceMs: Math.max(800, Math.min(4000, silenceMs)) }); }
+  setLanguage(language: VoiceLanguage): void {
+    if (language === this.state.language) return;
+    this.pause('Language changed. Tap Resume voice when you’re ready.');
+    this.dependencies.input.setLanguage?.(language); this.dependencies.output.setLanguage?.(language);
+    this.update({ language, spokenText: '', transcript: '', interim: '' });
+  }
   dispose(): void { this.end(); this.dependencies.output.dispose(); this.subscribers.clear(); }
 }

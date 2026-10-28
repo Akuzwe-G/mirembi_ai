@@ -3,7 +3,8 @@ import { api, ApiError } from './api';
 import { avatarTransition } from './avatar-machine';
 import { forgetGuest, readGuest, saveGuest } from './guest-storage';
 import { deleteOfflineCopy } from './offline-vault';
-import type { Analysis, Concern, ConcernEdit, GuestAccess, JourneyAction, Message } from './types';
+import type { Analysis, Concern, ConcernEdit, GuestAccess, JourneyAction, Message, RequestTimings } from './types';
+import type { VoiceLanguage } from './voice/languages';
 
 export function useJourney() {
   const [access, setAccess] = useState<GuestAccess | null>(null);
@@ -11,6 +12,7 @@ export function useJourney() {
   const [concerns, setConcerns] = useState<Concern[]>([]);
   const [actions, setActions] = useState<JourneyAction[]>([]);
   const [analysis, setAnalysis] = useState<Analysis>();
+  const [timings, setTimings] = useState<RequestTimings>();
   const [busy, setBusy] = useState<string | null>('restoring');
   const [error, setError] = useState<string | null>(null);
   const [needsRefresh, setNeedsRefresh] = useState(false);
@@ -67,12 +69,13 @@ export function useJourney() {
     remember(guest); setAccess(guest); setNeedsRefresh(false); setUnavailable(false);
   });
 
-  const send = (text: string) => {
+  const send = (text: string, language: VoiceLanguage = 'en-US') => {
     const guest = currentAccess.current;
     if (!navigator.onLine || !guest || !text.trim() || needsRefresh || unavailable) return Promise.resolve(false);
     return perform('sending', async () => {
       avatarEvent('SEND');
-      const result = await api.send(guest, text.trim());
+      const result = await api.send(guest, text.trim(), language);
+      setTimings(result.timings);
       latestAnalysis.current = result.analysis;
       const stamp = Date.now();
       setMessages(current => [...current, { id: `u-${stamp}`, role: 'user', content: text.trim() },
@@ -82,8 +85,8 @@ export function useJourney() {
     });
   };
 
-  const sendVoice = async (text: string): Promise<Analysis | null> => {
-    return await send(text) ? latestAnalysis.current : null;
+  const sendVoice = async (text: string, language: VoiceLanguage = 'en-US'): Promise<Analysis | null> => {
+    return await send(text, language) ? latestAnalysis.current : null;
   };
 
   const edit = (id: number, values: ConcernEdit) => {
@@ -122,7 +125,7 @@ export function useJourney() {
   const resetLocal = () => {
     currentAccess.current = null;
     forgetGuest(); setAccess(null); setMessages([]); setConcerns([]); setActions([]);
-    setAnalysis(undefined); setError(null); setNeedsRefresh(false); setUnavailable(false);
+    setAnalysis(undefined); latestAnalysis.current = null; setTimings(undefined); setError(null); setNeedsRefresh(false); setUnavailable(false);
     setStorageWarning(false); avatarEvent('ERROR');
   };
 
@@ -141,6 +144,6 @@ export function useJourney() {
     });
   };
 
-  return { access, messages, concerns, actions, analysis, busy, error, needsRefresh, unavailable,
+  return { access, messages, concerns, actions, analysis, timings, busy, error, needsRefresh, unavailable,
     storageWarning, avatar, avatarEvent, start, send, sendVoice, edit, confirm, saveAction, complete, clear, restore, resetLocal };
 }

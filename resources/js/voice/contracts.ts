@@ -1,7 +1,8 @@
 export type VoicePhase = 'idle' | 'requesting_permission' | 'listening' | 'processing' | 'thinking' | 'speaking' | 'paused' | 'error';
-export type SpeechOutcome = 'completed' | 'interrupted' | 'blocked';
+export type SpeechOutcome = 'completed' | 'interrupted' | 'blocked' | 'unavailable';
 export interface SpeechOutput {
   readonly supported: boolean;
+  setLanguage?(language: string): void;
   activate(): void;
   speak(text: string, rate: number, onStart: () => void): Promise<SpeechOutcome>;
   stop(): void;
@@ -16,6 +17,7 @@ export interface RecognitionEvents {
 }
 export interface SpeechInput {
   readonly supported: boolean;
+  setLanguage?(language: string): void;
   start(events: RecognitionEvents): void;
   stop(): void;
   abort(): void;
@@ -33,4 +35,6 @@ export interface VoiceSnapshot {
   rate: number;
   silenceMs: number;
   requestPending: boolean;
+  language: import('./languages').VoiceLanguage;
+  timings: { endpointingMs?: number; finalizationMs?: number; requestMs?: number; ttsStartupMs?: number };
 }
