@@ -41,7 +41,7 @@ class JourneyController extends Controller
     {
         $this->owned($request, $journey);
         $data = $request->validate(['message' => 'required|string|min:1|max:3000']);
-        $history = $journey->messages()->orderByDesc('id')->limit(8)->get(['role', 'content'])
+        $history = $journey->messages()->orderByDesc('id')->limit(max(0, min(8, (int) config('mirembe.history_messages'))))->get(['role', 'content'])
             ->reverse()->values()->map(fn ($message) => [
                 'role' => $message->role,
                 'content' => $message->content,
@@ -52,6 +52,8 @@ class JourneyController extends Controller
             Log::warning('Clarity analysis failed.', ['exception_type' => get_class($e)]);
 
             return response()->json(['error' => 'Mirembe could not analyse this message. Your journey is unchanged; please retry.'], 503)->header('Cache-Control', 'no-store');
+        } finally {
+            $request->attributes->set('mirembe.timings', $engine->timings());
         }
         DB::transaction(function () use ($journey, $data, $result) {
             $journey->messages()->create(['role' => 'user', 'content' => $data['message']]);

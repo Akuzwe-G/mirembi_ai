@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\MeasureClarityRequest;
 use App\Http\Middleware\RequireHttps;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(RequireHttps::class);
+        $middleware->append(MeasureClarityRequest::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

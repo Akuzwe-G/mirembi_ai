@@ -1,7 +1,8 @@
-import { ArrowDown, ArrowRight, Feather, LockKeyhole, Route, Sprout } from 'lucide-react';
+import { ArrowDown, ArrowRight, Feather, LockKeyhole, Mic, Route, Sprout } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { voiceConsent } from './VoiceConversationPanel';
 
-export function Welcome({ start, busy }: { start: () => void; busy: boolean }) {
+export function Welcome({ start, startTalking, busy }: { start: () => void; startTalking: () => void; busy: boolean }) {
   return <main id="main-content" className="mx-auto max-w-7xl px-5 sm:px-10 lg:px-16">
     <section className="welcome-grid grid items-center gap-6 pb-12 pt-12 md:grid-cols-2 md:gap-10 md:pb-20 md:pt-20">
       <div className="relative z-10 max-w-xl">
@@ -9,7 +10,8 @@ export function Welcome({ start, busy }: { start: () => void; busy: boolean }) {
         <h1 className="font-display text-[clamp(3rem,5.6vw,4.8rem)] leading-[1.08] tracking-[-0.055em]">A little less noise.<br /><span className="text-lavender-dark">A little more clarity.</span></h1>
         <p className="mt-7 max-w-md text-lg leading-relaxed text-muted">Meet Mirembe, your AI clarity companion.<br className="hidden sm:block" /> From overwhelm to clarity, one step at a time.</p>
         <p className="mt-4 max-w-sm text-sm leading-7 text-muted">You don’t need to have it all figured out. Bring what’s on your mind. We’ll untangle it together.</p>
-        <button className="btn-primary mt-8 gap-5 px-7 py-4" disabled={busy} onClick={start}>{busy ? 'Making space for you…' : 'Begin my journey'}<ArrowRight size={19} /></button>
+        <div className="mt-8 flex flex-wrap gap-3"><button className="btn-primary gap-3 px-7 py-4" disabled={busy} onClick={startTalking}><Mic size={17} />Start talking</button><button className="btn-secondary gap-3" disabled={busy} onClick={start}>{busy ? 'Making space for you…' : 'Begin my journey'}<ArrowRight size={17} /></button></div>
+        <p className="mt-3 max-w-md text-xs leading-6 text-muted">{voiceConsent} Prefer typing? Choose Begin my journey.</p>
         <div className="mt-4 flex items-center gap-2 text-xs text-muted"><LockKeyhole size={13} />No account needed. Start as a guest.</div>
       </div>
       <div className="welcome-art relative flex min-h-80 items-center justify-center md:min-h-[460px]">

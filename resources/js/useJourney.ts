@@ -19,6 +19,7 @@ export function useJourney() {
   const [avatar, avatarEvent] = useReducer(avatarTransition, 'idle');
   const lock = useRef(false);
   const currentAccess = useRef<GuestAccess | null>(null);
+  const latestAnalysis = useRef<Analysis | null>(null);
 
   const remember = (guest: GuestAccess, result?: Analysis) => setStorageWarning(!saveGuest(guest, result));
 
@@ -67,16 +68,22 @@ export function useJourney() {
   });
 
   const send = (text: string) => {
-    if (!navigator.onLine || !access || !text.trim() || needsRefresh || unavailable) return Promise.resolve(false);
+    const guest = currentAccess.current;
+    if (!navigator.onLine || !guest || !text.trim() || needsRefresh || unavailable) return Promise.resolve(false);
     return perform('sending', async () => {
       avatarEvent('SEND');
-      const result = await api.send(access, text.trim());
+      const result = await api.send(guest, text.trim());
+      latestAnalysis.current = result.analysis;
       const stamp = Date.now();
       setMessages(current => [...current, { id: `u-${stamp}`, role: 'user', content: text.trim() },
         { id: `a-${stamp}`, role: 'assistant', content: result.analysis.reflection, analysis: result.analysis }]);
-      setConcerns(result.concerns); setAnalysis(result.analysis); remember(access, result.analysis);
+      setConcerns(result.concerns); setAnalysis(result.analysis); remember(guest, result.analysis);
       avatarEvent('REPLY');
     });
+  };
+
+  const sendVoice = async (text: string): Promise<Analysis | null> => {
+    return await send(text) ? latestAnalysis.current : null;
   };
 
   const edit = (id: number, values: ConcernEdit) => {
@@ -135,5 +142,5 @@ export function useJourney() {
   };
 
   return { access, messages, concerns, actions, analysis, busy, error, needsRefresh, unavailable,
-    storageWarning, avatar, avatarEvent, start, send, edit, confirm, saveAction, complete, clear, restore, resetLocal };
+    storageWarning, avatar, avatarEvent, start, send, sendVoice, edit, confirm, saveAction, complete, clear, restore, resetLocal };
 }

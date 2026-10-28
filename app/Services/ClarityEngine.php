@@ -9,7 +9,25 @@ use RuntimeException;
 
 class ClarityEngine
 {
+    private array $timings = [];
+
+    public function timings(): array
+    {
+        return $this->timings;
+    }
+
     public function analyse(string $message, array $recentMessages = []): array
+    {
+        $started = hrtime(true);
+        $this->timings = ['meta' => 0.0, 'validation' => 0.0];
+        try {
+            return $this->requestAnalysis($message, $recentMessages);
+        } finally {
+            $this->timings['engine'] = (hrtime(true) - $started) / 1e6;
+        }
+    }
+
+    private function requestAnalysis(string $message, array $recentMessages): array
     {
         if (config('mirembe.mode') === 'demo') {
             return $this->demo($message);
@@ -18,6 +36,11 @@ class ClarityEngine
         if (! $key) {
             throw new RuntimeException('MODEL_API_KEY is missing.');
         }
+        $effort = config('mirembe.reasoning_effort');
+        $tokens = filter_var(config('mirembe.max_output_tokens'), FILTER_VALIDATE_INT);
+        if (! in_array($effort, ['low', 'medium'], true) || $tokens === false || $tokens < 1024 || $tokens > 8192) {
+            throw new RuntimeException('Invalid Clarity response settings.');
+        }
         $system = <<<'PROMPT'
 You are Mirembe, a warm, practical AI clarity companion, not a therapist.
 Help the user distinguish competing responsibilities without inventing facts.
@@ -25,35 +48,42 @@ Return ONLY JSON, exactly with keys: reflection (string), clarification_question
 concerns (array of objects with title, category, urgency, deadline), next_action (string or null), avatar_state (string).
 Allowed urgency: high, medium, low, unknown, ongoing. Category is a brief lowercase word.
 Allowed avatar_state: speaking, listening, thinking, neutral. Use an empty concerns array when no concerns are identified.
-Deadline must be explicit in the user's words or null. Keep reflection brief.
+Deadline must be explicit in the user's words or null. Keep reflection to 1-3 short, conversational sentences.
 Ask no more than one clarifying question; propose only a small achievable next action.
 Never diagnose or claim to be human. For imminent personal danger, prioritise real-world emergency support.
 PROMPT;
-        $history = array_slice($recentMessages, -8);
+        $limit = max(0, min(8, (int) config('mirembe.history_messages')));
+        $history = $limit === 0 ? [] : array_slice($recentMessages, -$limit);
         $context = collect($history)->map(fn ($m) => $m['role'].': '.$m['content'])->implode("\n");
-        $response = Http::withToken($key)
-            ->acceptJson()
-            ->connectTimeout(10)
-            ->timeout(60)
-            ->post(config('mirembe.meta_url'), [
-                'model' => config('mirembe.meta_model'),
+        $metaStarted = hrtime(true);
+        try {
+            $response = Http::withToken($key)
+                ->acceptJson()
+                ->connectTimeout(10)
+                ->timeout(60)
+                ->post(config('mirembe.meta_url'), [
+                    'model' => config('mirembe.meta_model'),
 
-                'instructions' => $system,
+                    'instructions' => $system,
 
-                'input' => "Previous conversation:\n"
-                    .$context
-                    ."\n\nCurrent user message:\n"
-                    .$message,
+                    'input' => "Previous conversation:\n"
+                        .$context
+                        ."\n\nCurrent user message:\n"
+                        .$message,
 
-                'max_output_tokens' => 2000,
-                'store' => false,
-                'text' => ['format' => [
-                    'type' => 'json_schema',
-                    'name' => 'clarity_analysis',
-                    'strict' => true,
-                    'schema' => $this->schema(),
-                ]],
-            ]);
+                    'reasoning' => ['effort' => $effort],
+                    'max_output_tokens' => $tokens,
+                    'store' => false,
+                    'text' => ['format' => [
+                        'type' => 'json_schema',
+                        'name' => 'clarity_analysis',
+                        'strict' => true,
+                        'schema' => $this->schema(),
+                    ]],
+                ]);
+        } finally {
+            $this->timings['meta'] = (hrtime(true) - $metaStarted) / 1e6;
+        }
 
         if (! $response->successful()) {
             throw new RuntimeException('Meta API request failed (HTTP '.$response->status().').');
@@ -88,7 +118,12 @@ PROMPT;
             throw new RuntimeException('Meta returned non-JSON output. Please retry.');
         }
 
-        return $this->validateResult($parsed);
+        $validationStarted = hrtime(true);
+        try {
+            return $this->validateResult($parsed);
+        } finally {
+            $this->timings['validation'] = (hrtime(true) - $validationStarted) / 1e6;
+        }
     }
 
     private function schema(): array

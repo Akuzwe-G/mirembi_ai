@@ -17,7 +17,7 @@ export function Conversation({ messages, draft, setDraft, busy, blocked, avatar,
     if (messages.length && region) region.scrollTop = region.scrollHeight;
   }, [messages.length]);
   const submit = async () => {
-    if (busy || blocked || !draft.trim()) return;
+    if (busy || blocked || !draft.trim() || draft.length > 3000) return;
     if (await send(draft)) { setDraft(''); textarea.current?.focus(); }
   };
   const suggestion = messages.at(-1)?.analysis?.next_action;
