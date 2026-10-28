@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from '../../resources/js/App';
@@ -24,11 +24,11 @@ describe('avatar-first entry and languages', () => {
     ['fr-FR', 'Je prépare un examen fictif.', 'Nous pouvons avancer doucement.'],
     ['rw-RW', 'Mfite ikizamini.', 'Dushobora kubiganiraho.'],
   ]) it(`keeps ${language} text and passes explicitly selected context without claiming detection`, async () => {
-    const fetch = vi.fn().mockResolvedValueOnce(json({ ...access, phase: 'express' })).mockResolvedValueOnce(json({ phase: 'clarify', analysis: { ...analysis, reflection: reply }, concerns: [] }));
+    const fetch = vi.fn().mockResolvedValueOnce(json({ ...access, phase: 'express' })).mockResolvedValueOnce(json({ phase: 'clarify', analysis: { ...analysis, response_language: language.slice(0, 2), reflection: reply }, concerns: [] }));
     vi.stubGlobal('fetch', fetch);
     const user = userEvent.setup(); render(<App />);
     await user.click(screen.getByRole('button', { name: 'Language and voice settings' }));
-    await user.selectOptions(screen.getByLabelText('Conversation language'), language);
+    await user.selectOptions(within(screen.getByRole('dialog')).getByLabelText('Conversation language'), language);
     expect(screen.getByText(/Automatic spoken-language detection is not configured/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close Settings' }));
     await user.click(screen.getByRole('button', { name: 'Type instead' }));
@@ -36,8 +36,8 @@ describe('avatar-first entry and languages', () => {
     await user.type(screen.getByRole('textbox'), message);
     await user.click(screen.getByRole('button', { name: 'Send message' }));
     expect(await screen.findByText(reply)).toBeInTheDocument();
-    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ message, language, language_source: 'user_selected' });
-    expect(JSON.parse(localStorage.getItem('mirembe.voice-preferences.v1')!)).toEqual({ language, voicePreferred: false });
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ message, language, language_source: 'user_selected', input_method: 'typing' });
+    expect(JSON.parse(localStorage.getItem('mirembe.voice-preferences.v1')!)).toEqual({ language, voicePreferred: false, responseMode: 'both' });
     expect(localStorage.getItem('mirembe.voice-preferences.v1')).not.toContain(message);
   });
   it('remembers language without starting capture and provides honest account placeholders', async () => {

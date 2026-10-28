@@ -10,6 +10,7 @@ interface NativeRecognition {
 type RecognitionWindow = Window & { SpeechRecognition?: new () => NativeRecognition; webkitSpeechRecognition?: new () => NativeRecognition };
 
 export class BrowserSpeechInput implements SpeechInput {
+  readonly capabilities = { provider: 'browser', automaticLanguageDetection: false, supportedLanguages: null };
   private language = 'en-US';
   setLanguage(language: string): void { this.language = language; }
   private recognition: NativeRecognition | null = null;
@@ -58,6 +59,8 @@ export function chooseVoice(voices: SpeechSynthesisVoice[], language: string): S
 export const chooseEnglishVoice = (voices: SpeechSynthesisVoice[]) => chooseVoice(voices, 'en-US');
 
 export class BrowserSpeechOutput implements SpeechOutput {
+  private selectedVoiceLanguage: string | undefined;
+  get voiceLanguage(): string | undefined { return this.selectedVoiceLanguage; }
   private language = 'en-US';
   setLanguage(language: string): void { this.language = language; }
   private finish: ((outcome: SpeechOutcome) => void) | null = null;
@@ -80,6 +83,7 @@ export class BrowserSpeechOutput implements SpeechOutput {
     return new Promise(resolve => {
       const utterance = new SpeechSynthesisUtterance(text);
       const voice = chooseVoice(this.voices, this.language);
+      this.selectedVoiceLanguage = voice?.lang;
       if (!voice && this.language !== 'en-US') { resolve('unavailable'); return; }
       if (voice) utterance.voice = voice;
       utterance.lang = voice?.lang ?? this.language; utterance.rate = Math.max(.7, Math.min(1.4, rate));

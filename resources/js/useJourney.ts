@@ -69,12 +69,12 @@ export function useJourney() {
     remember(guest); setAccess(guest); setNeedsRefresh(false); setUnavailable(false);
   });
 
-  const send = (text: string, language: VoiceLanguage = 'en-US') => {
+  const send = (text: string, language: VoiceLanguage = 'en-US', inputMethod: 'voice' | 'typing' = 'typing') => {
     const guest = currentAccess.current;
     if (!navigator.onLine || !guest || !text.trim() || needsRefresh || unavailable) return Promise.resolve(false);
     return perform('sending', async () => {
       avatarEvent('SEND');
-      const result = await api.send(guest, text.trim(), language);
+      const result = await api.send(guest, text.trim(), language, inputMethod);
       setTimings(result.timings);
       latestAnalysis.current = result.analysis;
       const stamp = Date.now();
@@ -85,8 +85,8 @@ export function useJourney() {
     });
   };
 
-  const sendVoice = async (text: string, language: VoiceLanguage = 'en-US'): Promise<Analysis | null> => {
-    return await send(text, language) ? latestAnalysis.current : null;
+  const sendVoice = async (text: string, language: VoiceLanguage = 'en-US', inputMethod: 'voice' | 'typing' = 'voice'): Promise<Analysis | null> => {
+    return await send(text, language, inputMethod) ? latestAnalysis.current : null;
   };
 
   const edit = (id: number, values: ConcernEdit) => {

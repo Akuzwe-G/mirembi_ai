@@ -111,6 +111,8 @@ test('standalone launch hides install guidance and accessibility checks pass', a
   await page.getByRole('button', { name: 'Close Your space' }).click();
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(node => node.target) }))).toEqual([]);
+  await page.getByRole('button', { name: 'Language and voice settings' }).click();
+  await expect(page.getByText('Language diagnostics · development only')).toHaveCount(0);
 });
 
 test('service worker updates wait for consent and remove obsolete precache assets', async ({ page }) => {

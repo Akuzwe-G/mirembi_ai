@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { access, analysis, concern } from '../frontend/fixtures';
+import { access, analysis, concern, snapshot } from '../frontend/fixtures';
 
 test('explicit activation, microphone cleanup and typing fallback', async ({ page }) => {
   await page.addInitScript(() => {
     let active: Recognition | undefined;
+    let spokenCount = 0;
+    Object.defineProperty(window, '__speechCount', { get: () => spokenCount });
     class Recognition {
       onstart: (() => void) | null = null;
       onresult: ((event: { results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) | null = null;
@@ -22,11 +24,12 @@ test('explicit activation, microphone cleanup and typing fallback', async ({ pag
     Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: Utterance });
     Object.defineProperty(window, 'speechSynthesis', { value: {
       getVoices: () => [], addEventListener() {}, removeEventListener() {}, resume() {}, cancel() {},
-      speak(utterance: Utterance) { setTimeout(() => { utterance.onstart?.(); utterance.onend?.(); }, 10); },
+      speak(utterance: Utterance) { if (utterance.text.trim()) spokenCount++; setTimeout(() => { utterance.onstart?.(); utterance.onend?.(); }, 10); },
     } });
   });
   let submissions = 0;
   await page.route('**/api/**', route => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: snapshot });
     if (route.request().method() === 'POST' && new URL(route.request().url()).pathname === '/api/journeys') {
       return route.fulfill({ status: 201, json: { ...access, phase: 'express' } });
     }
@@ -56,6 +59,19 @@ test('explicit activation, microphone cleanup and typing fallback', async ({ pag
   await expect(panel).toHaveAttribute('data-voice-state', 'paused');
   await panel.getByRole('button', { name: 'Switch to typing' }).click();
   await expect(page.getByRole('textbox', { name: 'Your message to Mirembe' })).toBeEnabled();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('radio', { name: 'Both', exact: true })).toBeChecked();
+  await dialog.getByRole('radio', { name: 'Voice', exact: true }).check();
+  await dialog.getByRole('textbox').fill('A fictional assignment is due Friday.');
+  await dialog.getByRole('button', { name: 'Send message' }).click();
+  await expect.poll(() => submissions).toBe(2);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __speechCount: number }).__speechCount)).toBe(3);
+  await expect(dialog.getByText('Written reply / accessible captions').last()).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close My Journey' }).click();
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Voice', exact: true })).toBeChecked();
+  await expect(page.locator('[data-voice-state]')).toHaveAttribute('data-voice-state', 'idle');
+  expect(await page.evaluate(() => (window as unknown as { __speechCount: number }).__speechCount)).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

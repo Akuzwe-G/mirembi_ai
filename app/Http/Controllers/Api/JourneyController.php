@@ -41,8 +41,9 @@ class JourneyController extends Controller
     {
         $this->owned($request, $journey);
         $data = $request->validate(['message' => 'required|string|min:1|max:3000',
-            'language' => 'sometimes|required|in:en-US,fr-FR,rw-RW',
+            'language' => 'sometimes|required|in:auto,en-US,fr-FR,rw-RW,hi-IN',
             'language_source' => 'sometimes|required|in:user_selected',
+            'input_method' => 'sometimes|required|in:typing,voice',
         ]);
         $history = $journey->messages()->orderByDesc('id')->limit(max(0, min(8, (int) config('mirembe.history_messages'))))->get(['role', 'content'])
             ->reverse()->values()->map(fn ($message) => [

@@ -4,6 +4,8 @@ Mirembe is a Laravel application with a React, TypeScript and Tailwind CSS front
 
 The current interface opens directly to the avatar and an **Enable microphone** action, with typing and the Clarity Map in secondary panels. See [the avatar-first handoff](docs/avatar-first-experience.md) for actual multilingual capabilities, test coverage, response timings and Laravel Cloud update steps. Normal Meta mode uses the real configured API; automated tests use mocks without consuming credits.
 
+The latest update adds independent **Text / Voice / Both** response modes for either typing or voice input, and Auto-detect text plus English, French, Kinyarwanda and Hindi choices. See [multilingual response modes](docs/multilingual-response-modes.md) for diagnosis, validated response-language handling, native speech limits, development diagnostics and Cloud rollout instructions.
+
 ## Launch the current application
 
 From `C:\laragon\www\mirembe-ai`, run:

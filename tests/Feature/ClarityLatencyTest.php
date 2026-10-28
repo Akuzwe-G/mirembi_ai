@@ -24,7 +24,7 @@ class ClarityLatencyTest extends TestCase
     private function envelope(): array
     {
         return ['status' => 'completed', 'output' => [['type' => 'message', 'role' => 'assistant', 'content' => [['type' => 'output_text', 'text' => json_encode([
-            'reflection' => 'We can explore this one step at a time.', 'clarification_question' => 'What comes first?',
+            'response_language' => 'en', 'reflection' => 'We can explore this one step at a time.', 'clarification_question' => 'What comes first?',
             'concerns' => [], 'next_action' => null, 'avatar_state' => 'speaking',
         ])]]]]];
     }

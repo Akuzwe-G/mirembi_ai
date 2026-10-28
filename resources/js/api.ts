@@ -50,7 +50,7 @@ const path = (access: GuestAccess) => `/${encodeURIComponent(access.journey_id)}
 export const api = {
   create: () => request<GuestAccess & { phase: string }>('', undefined, 'POST'),
   restore: (access: GuestAccess) => request<JourneySnapshot>(path(access), access),
-  send: (access: GuestAccess, message: string, language: VoiceLanguage = 'en-US') => request<MessageResponse>(`${path(access)}/messages`, access, 'POST', { message, language, language_source: 'user_selected' }, true),
+  send: (access: GuestAccess, message: string, language: VoiceLanguage = 'en-US', inputMethod: 'voice' | 'typing' = 'typing') => request<MessageResponse>(`${path(access)}/messages`, access, 'POST', { message, language, language_source: 'user_selected', input_method: inputMethod }, true),
   edit: (access: GuestAccess, id: number, edit: ConcernEdit) => request<Concern>(`${path(access)}/concerns/${id}`, access, 'PATCH', edit),
   confirm: (access: GuestAccess, id: number) => request<{ phase: string; concerns: Concern[] }>(`${path(access)}/confirm`, access, 'POST', { concern_ids: [id] }),
   action: (access: GuestAccess, title: string) => request<JourneyAction>(`${path(access)}/actions`, access, 'POST', { title }),

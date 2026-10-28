@@ -8,6 +8,7 @@ export interface Concern {
   confirmed: boolean;
 }
 export interface Analysis {
+  response_language?: import('./voice/languages').ResponseLanguage;
   reflection: string;
   clarification_question: string | null;
   concerns: { title: string; category: string; urgency: Urgency; deadline: string | null }[];

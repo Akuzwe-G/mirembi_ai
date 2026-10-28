@@ -18,6 +18,54 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe('hands-free conversation lifecycle', () => {
+  it('replays a paused voice reply without reactivating the microphone', async () => {
+    const f = fixture(); await f.controller.start();
+    f.events().transcript('A fictional thought.', ''); f.events().ended(); await vi.advanceTimersByTimeAsync(0);
+    expect(f.input.start).toHaveBeenCalledTimes(2);
+    f.controller.pause(); f.controller.replay(); await vi.advanceTimersByTimeAsync(0);
+    expect(f.input.start).toHaveBeenCalledTimes(2);
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'paused', microphoneActive: false });
+    expect(f.send).toHaveBeenCalledTimes(1); f.controller.dispose();
+  });
+  for (const mode of ['text', 'voice', 'both'] as const) it(`supports typing with ${mode} output independently of microphone permission`, async () => {
+    const f = fixture(); f.controller.setResponseMode(mode);
+    expect(await f.controller.sendTyped('A fictional typed message.')).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.send).toHaveBeenCalledExactlyOnceWith('A fictional typed message.', 'typing');
+    expect(f.input.start).not.toHaveBeenCalled(); expect(f.permission).not.toHaveBeenCalled();
+    expect(f.output.speak).toHaveBeenCalledTimes(mode === 'text' ? 0 : 1);
+    expect(f.controller.getSnapshot()).toMatchObject({ active: false, phase: 'idle', responseMode: mode });
+    f.controller.dispose();
+  });
+  it('requires an explicit spoken language in Auto mode instead of silently recognising English', async () => {
+    const f = fixture(); f.controller.setLanguage('auto'); await f.controller.start();
+    expect(f.controller.getSnapshot().notice).toContain('Browser voice needs a specific language');
+    expect(f.permission).not.toHaveBeenCalled(); expect(f.input.start).not.toHaveBeenCalled();
+    f.controller.dispose();
+  });
+  it('keeps the microphone loop running for text-only replies without synthesising speech', async () => {
+    const f = fixture(); f.controller.setResponseMode('text'); await f.controller.start();
+    f.events().transcript('A fictional thought.', ''); f.events().ended(); await vi.advanceTimersByTimeAsync(0);
+    expect(f.output.speak).not.toHaveBeenCalled(); expect(f.input.start).toHaveBeenCalledTimes(2);
+    expect(f.controller.getSnapshot().responseMode).toBe('text'); f.controller.dispose();
+  });
+  it('exposes one explicit replay after blocked typed audio without another model request', async () => {
+    const f = fixture(); f.output.speak.mockResolvedValueOnce('blocked');
+    await f.controller.sendTyped('A fictional thought.'); await vi.advanceTimersByTimeAsync(0);
+    expect(f.controller.getSnapshot().playbackStatus).toBe('blocked');
+    f.controller.replay(); await vi.advanceTimersByTimeAsync(0);
+    expect(f.output.speak).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledTimes(1);
+    expect(f.input.start).not.toHaveBeenCalled(); f.controller.dispose();
+  });
+  it('stops typed audio when hidden or paused and prevents a late completion from restarting capture', async () => {
+    const f = fixture(); let finish!: (result: SpeechOutcome) => void;
+    f.output.speak.mockImplementationOnce((_text, _rate, started) => { started(); return new Promise(resolve => { finish = resolve; }); });
+    await f.controller.sendTyped('A fictional thought.');
+    expect(f.controller.getSnapshot().phase).toBe('speaking');
+    f.controller.pause('Backgrounded.'); finish('completed'); await vi.advanceTimersByTimeAsync(0);
+    expect(f.controller.getSnapshot().phase).toBe('paused'); expect(f.input.start).not.toHaveBeenCalled();
+    expect(f.output.stop).toHaveBeenCalled(); f.controller.dispose();
+  });
   it('stops an active session when language changes and explains unsupported recognition', async () => {
     const f = fixture(); await f.controller.start();
     f.controller.setLanguage('fr-FR');

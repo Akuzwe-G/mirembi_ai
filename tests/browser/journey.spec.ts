@@ -49,6 +49,9 @@ for (const { width, height } of [{ width: 320, height: 568 }, { width: 375, heig
     const bounds = await microphone.boundingBox();
     expect(bounds!.y).toBeGreaterThanOrEqual(0);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
+    const modes = await page.getByRole('group', { name: 'Response mode' }).boundingBox();
+    expect(modes!.y + modes!.height).toBeLessThanOrEqual(height);
+    await expect(page.getByRole('radio', { name: 'Both', exact: true })).toBeChecked();
     await expect(page.getByRole('log')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 1440) await page.screenshot({ path: 'storage/app/frontend-welcome-desktop.png', fullPage: true });

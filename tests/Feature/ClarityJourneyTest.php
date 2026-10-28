@@ -21,7 +21,7 @@ class ClarityJourneyTest extends TestCase
 
     private function analysis(): array
     {
-        return ['reflection' => 'Let us choose one task.', 'clarification_question' => null,
+        return ['response_language' => 'en', 'reflection' => 'Let us choose one task.', 'clarification_question' => null,
             'concerns' => [['title' => 'Coursework', 'category' => 'education', 'urgency' => 'high', 'deadline' => null]],
             'next_action' => 'List the first step.', 'avatar_state' => 'speaking'];
     }
