@@ -31,7 +31,10 @@ class JourneyController extends Controller
         $this->owned($request, $journey);
 
         return response()->json(['journey' => $journey->only(['id', 'phase']),
-            'concerns' => $journey->concerns()->get(), 'actions' => $journey->actions()->get()])->header('Cache-Control', 'no-store');
+            'concerns' => $journey->concerns()->get(), 'actions' => $journey->actions()->get(),
+            'messages' => $journey->messages()->orderBy('id')->get(['id', 'role', 'content'])
+                ->map(fn ($message) => ['id' => $message->id, 'role' => $message->role, 'content' => $message->content]),
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function message(Request $request, Journey $journey, ClarityEngine $engine)
@@ -82,6 +85,7 @@ class JourneyController extends Controller
         $this->owned($request, $journey);
         $c = $journey->concerns()->findOrFail($concern);
         $data = $request->validate(['title' => 'sometimes|required|string|max:180', 'deadline' => 'nullable|string|max:100',
+            'category' => 'sometimes|required|string|max:40',
             'urgency' => 'sometimes|in:high,medium,low,unknown,ongoing', 'confirmed' => 'sometimes|boolean']);
         $c->update($data);
 
